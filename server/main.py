@@ -80,6 +80,20 @@ class Order(BaseModel):
     actual_delivery: Optional[str] = None
     warehouse: Optional[str] = None
     category: Optional[str] = None
+    order_type: Optional[str] = None      # "restocking" for restocking orders
+    lead_time_days: Optional[int] = None  # only set on restocking orders
+
+
+class RestockingOrderItem(BaseModel):
+    sku: str
+    name: str
+    quantity: int
+    unit_cost: float
+
+
+class CreateRestockingOrderRequest(BaseModel):
+    lead_time_days: int
+    items: List[RestockingOrderItem]
 
 class DemandForecast(BaseModel):
     id: str
@@ -160,6 +174,41 @@ def get_order(order_id: str):
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     return order
+
+@app.post("/api/restocking-orders", response_model=Order)
+def create_restocking_order(request: CreateRestockingOrderRequest):
+    """Create a restocking order from recommended demand forecast items"""
+    from datetime import datetime, timedelta
+    import uuid
+
+    if not request.items:
+        raise HTTPException(status_code=400, detail="No items provided")
+    if request.lead_time_days < 1:
+        raise HTTPException(status_code=400, detail="lead_time_days must be at least 1")
+
+    now = datetime.utcnow()
+    expected_delivery = now + timedelta(days=request.lead_time_days)
+    next_num = len(orders) + 1
+    total_value = sum(i.quantity * i.unit_cost for i in request.items)
+
+    new_order = {
+        "id": str(uuid.uuid4()),
+        "order_number": f"RST-{now.year}-{next_num:04d}",
+        "customer": "Internal Restocking",
+        "items": [
+            {"sku": i.sku, "name": i.name, "quantity": i.quantity, "unit_price": i.unit_cost}
+            for i in request.items
+        ],
+        "status": "Processing",
+        "order_date": now.isoformat(),
+        "expected_delivery": expected_delivery.isoformat(),
+        "total_value": round(total_value, 2),
+        "order_type": "restocking",
+        "lead_time_days": request.lead_time_days
+    }
+    orders.append(new_order)
+    return new_order
+
 
 @app.get("/api/demand", response_model=List[DemandForecast])
 def get_demand_forecasts():

@@ -40,6 +40,21 @@ cd client
 npm install && npm run dev
 ```
 
+### Verifying Servers Started
+
+**IMPORTANT:** Background commands can fail silently (missing binaries, import errors, port conflicts). Always verify servers are actually serving before proceeding:
+
+```bash
+# Verify both servers return 200 before continuing
+curl -s -o /dev/null -w "backend: %{http_code}\n" http://localhost:8001/docs
+curl -s -o /dev/null -w "frontend: %{http_code}\n" http://localhost:3000
+```
+
+If a server returns `000` or fails to respond:
+1. Read the background task output file to find the actual error
+2. Check the port isn't already in use: `lsof -i:3000,8001`
+3. If `uv` hangs or fails, fall back to running directly: `server/.venv/bin/python main.py`
+
 ## Key Patterns
 
 **Filter System**: 4 filters (Time Period, Warehouse, Category, Order Status) apply to all data via query params
@@ -66,6 +81,9 @@ npm install && npm run dev
 - Backend: `server/main.py`, `server/mock_data.py`
 - Data: `server/data/*.json`
 - Styles: `client/src/App.vue`
+
+## Code Style
+- Always document non-obvious logic changes with comments
 
 ## Design System
 - Colors: Slate/gray (#0f172a, #64748b, #e2e8f0)
